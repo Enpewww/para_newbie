@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pandas
+google-generativeai
+python-multipart
+requests
+python-dotenv
+llama-index
+langchain

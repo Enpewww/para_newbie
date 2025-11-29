@@ -1,0 +1,138 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: postgres
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: amarthafin
+      PGDATA: /var/lib/postgresql/18/docker
+    ports: ["5433:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -h localhost -U 1524POSTGRES_USER -d 1524POSTGRES_DB"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    networks: { n8n: { aliases: [postgres] } }
+
+  python-runner:
+    image: python:3.14.0-slim-bookworm
+    container_name: python-runner
+    working_dir: /app
+    restart: unless-stopped
+    environment:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONUNBUFFERED: "1"
+      HEADLESS: "0"
+      PW_NO_SANDBOX: "1"
+      DISPLAY: ":99"
+      XDG_RUNTIME_DIR: "/tmp/runtime"
+      PGHOST: "postgres"
+      PGPORT: "5432"
+      PGUSER: "agent"
+      PGPASSWORD: "123"
+      PGDATABASE: "amarthafin"
+      PY_CODE_DIR: "/code"
+    volumes:
+      - ./runner:/app
+      - ./py:/code
+    command: >
+      bash -lc 'set -e;
+        apt-get update;
+        apt-get install -y --no-install-recommends xvfb curl ca-certificates netcat-openbsd;
+        rm -rf /var/lib/apt/lists/*;
+
+        python -m pip install -qU pip;
+        pip install -q --no-cache-dir flask requests pandas openpyxl "psycopg[binary]>=3.2" "psycopg2-binary>=2.9.9" playwright pymupdf requests pillow;
+
+        python -m playwright install --with-deps chromium;
+
+        Xvfb :99 -screen 0 1366x768x24 &
+
+        exec python app.py'
+    healthcheck:
+      test: ["CMD-SHELL","python - <<'PY'\nimport urllib.request,sys\ntry:\n  urllib.request.urlopen('http://localhost:8000/healthz',timeout=2)\n  sys.exit(0)\nexcept Exception:\n  sys.exit(1)\nPY"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    networks: { n8n: { aliases: [python-runner] } }
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-agent
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      python-runner:
+        condition: service_started
+    environment:
+      N8N_ENCRYPTION_KEY: "TLLaDtP9tSc4V9baBvgxMgDZCwvtZjs6"
+      N8N_PROXY_HOPS: "1"
+      WEBHOOK_URL: "http://n8n-agent:5678"
+      N8N_PORT: "5678"
+      N8N_TIMEZONE: "Asia/Jakarta"
+      GENERIC_TIMEZONE: "Asia/Jakarta"
+      NODE_OPTIONS: "--max-old-space-size=2048"
+      N8N_DATABASE_TYPE: "postgresdb"
+      N8N_DATABASE_POSTGRESDB_HOST: "postgres"
+      N8N_DATABASE_POSTGRESDB_PORT: "5432"
+      N8N_DATABASE_POSTGRESDB_DATABASE: "amarthafin"
+      N8N_DATABASE_POSTGRESDB_USER: "agent"
+      N8N_DATABASE_POSTGRESDB_PASSWORD: "123"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "false"
+      PGHOST: "postgres"
+      PGPORT: "5432"
+      PGUSER: "agent"
+      PGPASSWORD: "123"
+      PGDATABASE: "amarthafin"
+    ports: ["5678:5678"]
+    volumes:
+      - ./n8n-data:/home/node/.n8n
+      - ./py:/workspace/py
+    healthcheck:
+      test: ["CMD-SHELL","sh -lc '(command -v curl >/dev/null && curl -s http://localhost:5678/) || wget -qO- http://localhost:5678/ | grep -qi \"<title>n8n\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks: { n8n: { aliases: [n8n-agent] } }
+
+  waha:
+    image: devlikeapro/waha-plus:latest
+    container_name: waha
+    restart: unless-stopped
+    shm_size: 1g
+    environment:
+      - TZ=Asia/Jakarta
+      - WHATSAPP_API_PORT=3000
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      - WAHA_DASHBOARD_ENABLED=true
+      - WAHA_APPS_ENABLED=false
+      - WAHA_DASHBOARD_USERNAME=waha
+      - WAHA_DASHBOARD_PASSWORD=tNyY5PQF3kllRZDO9UKw
+      - WAHA_API_KEY=sha512:0ad6751d8f457e3060ace828f5ceddf51f38b709f6916cacc8dde70e6fc8e307d8d6e702b171cb3156baa21b1de6216b8e256266e3d3b14a84f98b568b48dc94
+      - WAHA_API_KEY_PLAIN=4abe04445a8240c78042d65fe9e4a458
+      - WAHA_BASE_URL=http://waha:3000
+      - WAHA_PUBLIC_URL=http://localhost:3000
+      - WHATSAPP_API_SCHEMA=http
+      - WHATSAPP_FILES_FOLDER=/app/.media
+      - WHATSAPP_FILES_LIFETIME=0
+      - WHATSAPP_SWAGGER_ENABLED=true
+      - WHATSAPP_SWAGGER_USERNAME=waha
+      - WHATSAPP_SWAGGER_PASSWORD=tNyY5PQF3kllRZDO9UKw
+    ports: ["3000:3000"]
+    volumes:
+      - ./waha-sessions:/app/.sessions
+      - ./waha-media:/app/.media
+    networks: { n8n: { aliases: [waha] } }
+
+networks:
+  n8n: {}
+
+volumes:
+  pgdata:
