@@ -1,0 +1,1410 @@
+{
+  "name": "test1",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Kumpulkan teks dari 3 sumber (prioritas: Text Prompt -> Purchase DB SPV -> Analyze image)\nconst pick = v => (typeof v === 'string' ? v.trim() : '');\n\nconst sources = [\n  { name: 'text_prompt',     selector: 'Text Prompt',\n    getter: n => pick(n.json?.Text ?? n.json?.text ?? n.json?.output) },\n  { name: 'purchase_db_spv', selector: 'Purchase Database SPV',\n    getter: n => pick(n.json?.Text ?? n.json?.text ?? n.json?.output) },\n  { name: 'analyze_image',   selector: 'Analyze image',\n    getter: n => pick(n.json?.content?.parts?.[0]?.text ?? n.json?.text ?? n.json?.output) },\n];\n\nconst inputs = [];\nfor (const s of sources) {\n  try {\n    const node = $(s.selector).first();\n    const txt  = s.getter(node);\n    if (txt) inputs.push({ name: s.name, text: txt });\n  } catch (e) { /* ignore */ }\n}\n\n// Ambil caption prioritas\nlet caption = '';\nlet source  = '';\nfor (const wanted of ['text_prompt', 'purchase_db_spv', 'analyze_image']) {\n  const hit = inputs.find(x => x.name === wanted);\n  if (hit) { caption = hit.text; source = hit.name; break; }\n}\n\n// Keyword intent\nconst keywords = ['purchase summary', 'laporan pembelian', 'laporan purchase'];\n\n// TRUE bila salah satu sumber mengandung salah satu keyword\nconst allTexts = inputs.map(x => x.text.toLowerCase());\nconst isGenerateIntent = allTexts.some(t => keywords.some(k => t.includes(k.toLowerCase())));\n\n// Output\nreturn [{\n  json: {\n    isGenerateIntent,\n    // source,   // <- buka untuk debug\n    // caption   // <- buka untuk debug\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        368
+      ],
+      "id": "93ff94ab-e0e1-4694-8265-1bbfe26a056d",
+      "name": "Request Report ?"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "dc983de9-b185-4d6a-8624-baabf514f322",
+                    "leftValue": "={{ $json.isGenerateIntent }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Not request data"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.isGenerateIntent }}",
+                    "rightValue": "purchase summary",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "c1713c8b-5a8c-488e-8a27-5b0852bc5ceb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "=Request data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1968,
+        368
+      ],
+      "id": "6a36ae12-d5fb-461e-b28c-617ed13ecf7f",
+      "name": "If User Request a Report"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5aa1b8b4-1531-4ca4-8a09-b2efa01fafd6",
+                    "leftValue": "={{ ![ \"44311395758293@lid\" ].includes($('WAHA Trigger').item.json.payload.from) }}",
+                    "rightValue": "=",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Decline"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ [ \"44311395758293@lid\" ].includes($('WAHA Trigger').item.json.payload.from) }}",
+                    "rightValue": "=",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "665ccf27-944a-42e1-bb26-86792b883fb5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "=Pass"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        912,
+        192
+      ],
+      "id": "be2bbb2a-9f7b-47fe-a672-6cbb9a346a6e",
+      "name": "Authorized User"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('WAHA Trigger').item.json.payload.from }}",
+        "tableName": "=n8n_chat_histories",
+        "contextWindowLength": "={{ Number.MAX_SAFE_INTEGER }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1456,
+        624
+      ],
+      "id": "d08f0506-6d9d-456b-ba88-23ed5448f018",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "5Ve8LBMfVSfOyLOw",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "=Describe this image in detail and tell user what is the image, is it document or a picture.\n\nIf a screenshot contains a screenshot of an Excel workbook, then take all the information you can get and analyze based on user's request or question:\n{{ $('WAHA Trigger').item.json.payload._data.caption }}\n\nSimplify the output, max 4096 character.",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        784,
+        -320
+      ],
+      "id": "02ca4705-1810-43b3-86c9-a34f74cc86b7",
+      "name": "Analyze image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "19De1judl4l0fmTg",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "description": "Normalize a QuickChart payload (v1) produced by the AI and return a ready-to-use object.\n\nINPUT (query): a JSON object with this schema:\n{\n  intent: \"chart\" | \"text\",\n  caption: string,          \n  alt_text: string,         \n  chart_type: string|null,  \n  chart_config: object|null,\n  width: number,            \n  height: number,           \n  backgroundColor: \"white\" | \"transparent\",\n  data_preview?: { rows:number, columns:number }\n}\n\nWHAT THIS TOOL DOES:\n• Validates & normalizes the payload.\n• Ensures chart_config.type matches chart_type if provided.\n• Builds a QuickChart URL: https://quickchart.io/chart?c=<encoded>&width=<w>&height=<h>&backgroundColor=<bg>\n• Returns a single JSON string with all fields + chart_url.\n\nNOTES:\n• If intent=\"text\", chart_config may be null and chart_url will be null.\n• Input must be plain JSON (no markdown fences).\n",
+        "jsCode": "function stripCodeFences(s){ if(typeof s!=='string') return s; return s.trim().replace(/^```(?:json)?\\s*/i,'').replace(/\\s*```$/i,''); }\nfunction toObject(v){ if(typeof v==='string'){ const s=stripCodeFences(v); try{ return JSON.parse(s); }catch(e){ throw new Error('Input must be valid JSON'); } } if(v&&typeof v==='object') return v; throw new Error('Input must be a JSON object'); }\nfunction assert(c,m){ if(!c) throw new Error(m); }\n\nconst input = toObject(query)||{};\nconst out = {};\nout.intent = String(input.intent||'').toLowerCase();\nassert(out.intent==='chart' || out.intent==='text','intent must be \"chart\" or \"text\"');\n\nout.caption = String(input.caption ?? '');\nout.alt_text = String(input.alt_text ?? '');\n\nout.width  = Number.isFinite(+input.width)  && +input.width  > 0 ? +input.width  : 900;\nout.height = Number.isFinite(+input.height) && +input.height > 0 ? +input.height : 500;\nout.backgroundColor = String(input.backgroundColor || 'white');\nconst format = (input.format || 'png').toLowerCase();              // optional: png|svg|webp\nconst dpr    = Number.isFinite(+input.devicePixelRatio) ? +input.devicePixelRatio : undefined;\n\nout.chart_type   = input.chart_type ?? null;\nout.chart_config = input.chart_config ?? null;\n\nlet chartUrl = null, chartUrlSvg=null, chartUrlWebp=null;\nif(out.intent==='chart'){\n  assert(out.chart_config && typeof out.chart_config==='object','chart_config is required when intent=\"chart\"');\n  const cfg = {...out.chart_config};\n  if(!cfg.type && out.chart_type) cfg.type = out.chart_type;\n  if(!out.chart_type && cfg.type) out.chart_type = cfg.type;\n  assert(typeof cfg.type==='string' && cfg.type,'Chart.js \"type\" is required');\n  assert(cfg.data && Array.isArray(cfg.data.labels) && Array.isArray(cfg.data.datasets),'Chart.js \"data.labels\" and \"data.datasets\" are required');\n\n  // Minify config\n  const cfgStr = JSON.stringify(cfg);\n  const base   = 'https://quickchart.io/chart';\n  const q = (fmt)=> {\n    const params = [\n      'c='+encodeURIComponent(cfgStr),\n      'width='+out.width,\n      'height='+out.height,\n      'backgroundColor='+encodeURIComponent(out.backgroundColor),\n      (fmt && fmt!=='png') ? 'format='+fmt : null,\n      (dpr && dpr>0) ? 'devicePixelRatio='+dpr : null,\n    ].filter(Boolean).join('&');\n    return `${base}?${params}`;\n  };\n  chartUrl     = q(format);\n  chartUrlSvg  = q('svg');\n  chartUrlWebp = q('webp');\n  out.chart_config = cfg;\n} else {\n  out.chart_config = null;\n  out.chart_type   = null;\n}\n\nout.data_preview = (input.data_preview && typeof input.data_preview==='object')\n  ? { rows: +(input.data_preview.rows||0)||0, columns: +(input.data_preview.columns||0)||0 }\n  : null;\n\nout.chart_url      = chartUrl;\nout.chart_url_svg  = chartUrlSvg;\nout.chart_url_webp = chartUrlWebp;\n\nreturn JSON.stringify(out);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1920,
+        688
+      ],
+      "id": "339502e5-cbbc-4f74-8eba-27954b4fa53a",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Sub-agent that analyzes Purchase DB results and, when useful, produces QuickChart charts via the “Structured Output Parser”. Always answers in Indonesian; builds a Chart.js config and returns a concise caption + insights. Falls back to text if data is empty.\n",
+        "text": "={{ $fromAI('Prompt__User_Message_', ``, 'string') }}",
+        "options": {
+          "systemMessage": "{{ $fromAI('System_Message', `ROLE\nYou are a visualization sub-agent for “Purchase Database SPV”. You never query databases yourself. You read tabular JSON from previous nodes, decide whether a chart helps, and then EXECUTE the tool named “Structured Output Parser” to return a QuickChart-ready payload. Final user-visible text is Indonesian and concise.\n\nLANGUAGE\n• Write all user-visible text in Indonesian (no markdown).\n• Keep captions ≤ 2 sentences. Add at most 3 short bullet insights if absolutely needed.\n\nINPUTS YOU MAY RECEIVE\n• data: array of objects (rows) with columns like sku, store_name, order_d (YYYY-MM-DD), order_h (YYYY-MM-DD HH:00), qty, amount, etc.\n• user_prompt: the user’s request text (e.g., “grafik 14 hari terakhir per toko”).\n• meta: optional object with period/grain/x_field and plotting hints.\nAssume Asia/Jakarta locale for dates and numbers.\n\nWHEN TO VISUALIZE\nCreate a chart if: the user explicitly asks for a chart/visual, the data has a time sequence, a ranking/top-N, or a share-of-total. Otherwise return a short text summary.\n\nDATA SHAPING RULES\n• Choose exactly one x-axis field (date-like string): prefer meta.x_field; otherwise infer (order_h → hour, else order_d → day).\n• Choose 1–2 numeric metrics max (e.g., qty, amount). Numbers in datasets must be raw numbers (no formatting).\n• Aggregate: sum values that share the same (x, series) key.\n• Sort: time series by x ASC; ranking by metric DESC.\n• Cap series at ~10; if more appear in the input, keep the first 10 as provided and merge/ignore the rest.\n• Do not leak PII.\n\nCHART TYPE HEURISTICS\n• Time series → line (x = date/time, y = metric).\n• Ranking/top-N → horizontal bar (x = metric, y = category).\n• Share-of-total → doughnut.\n• Scatter if the request mentions correlation.\n\nCHART.JS CONFIG (QuickChart)\nBuild a minimal, valid Chart.js config (no fancy styling unless asked):\n{\n  \"type\": \"line\" | \"bar\" | \"doughnut\" | \"scatter\",\n  \"data\": {\n    \"labels\": [...],\n    \"datasets\": [\n      {\"label\": \"<series name>\", \"data\": [...]}\n    ]\n  },\n  \"options\": {\n    \"plugins\": {\n      \"title\": {\"display\": true, \"text\": \"<judul singkat>\"},\n      \"legend\": {\"display\": true}\n    },\n    \"scales\": {\"x\": {\"ticks\": {\"autoSkip\": true}}, \"y\": {\"beginAtZero\": true}},\n    \"responsive\": false,\n    \"animation\": false\n  }\n}\n\nSTRUCTURED OUTPUT CONTRACT (MANDATORY)\nAlways EXECUTE the tool “Structured Output Parser” by sending a JSON object as the `query` argument (plain JSON string, no code fences) that matches this schema (QuickChartResponse v1):\n{\n  \"intent\": \"chart\" | \"text\",\n  \"caption\": string,\n  \"alt_text\": string,\n  \"chart_type\": string | null,\n  \"chart_config\": object | null,\n  \"width\": number,\n  \"height\": number,\n  \"backgroundColor\": \"white\" | \"transparent\",\n  \"data_preview\": {\"rows\": number, \"columns\": number}\n}\nNotes:\n• Ensure chart_config has: type, data.labels (array), data.datasets (array). Remove null/undefined fields to keep URL short.\n• If there is no usable data (length = 0) or validation fails, set intent=\"text\", chart_config=null, and write one clear Indonesian sentence (e.g., “Tidak ada data pada periode yang diminta.”). Do NOT invent numbers.\n• The tool will return a JSON string that includes fields like chart_url.\n\nDECISION LOGIC\n1) If data length = 0 → call Structured Output Parser with intent=\"text\" and a short explanation; end.\n2) Choose chart type using heuristics and the user_prompt/meta.\n3) Aggregate and shape data; cap series at ~10.\n4) Build chart_config + set width=900, height=500, backgroundColor=\"white\".\n5) Prepare a concise Indonesian caption stating what/where/when and one key fact.\n6) EXECUTE the tool “Structured Output Parser” with the QuickChartResponse object as the `query` argument.\n\nRETURN FORMAT (MANDATORY)\n• After executing “Structured Output Parser”, READ its result (string JSON), parse it, then output EXACTLY 2 lines:\n  Line 1: <caption in Indonesian>\n  Line 2: <chart_url>\n• If intent=\"text\" (no chart), output only Line 1. No extra text, no markdown, no raw JSON.\n\nSTRICT PAYLOAD & PERIOD/GRAIN GUARD (ADD-ON)\n• You NEVER run queries. Use ONLY the JSON provided by previous nodes.\n• If meta.period is present (\"YYYY-MM-DD..YYYY-MM-DD WIB\"), you MUST use it as the exact half-open window [start_d, end_excl). Do not extend or guess the range (e.g., do not roll to the next month).\n• If meta.grain is present:\n  – \"day\"  ⇒ x_field must be \"order_d\" (YYYY-MM-DD).\n  – \"hour\" ⇒ x_field must be \"order_h\" (YYYY-MM-DD HH:00).\n• If meta.x_field is present, you MUST use it for the x-axis. If absent, infer without resampling.\n• Drop any data points outside meta.period. Do not add points beyond the window.\n• No apologies or long narration. Never claim to have “run queries”.\n\nTOP-N & VALIDATION (ADD-ON)\n• If more than meta.cap_n series are present, keep only the first N as provided (Top-N selection should already be done upstream).\n• Validate: labels length matches each dataset’s data length; remove empty datasets; then call the SOP tool.`, 'string') }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 2.2,
+      "position": [
+        1776,
+        544
+      ],
+      "id": "65e9a416-b9c6-47d0-9020-3e9774f96195",
+      "name": "Visualization"
+    },
+    {
+      "parameters": {
+        "url": "={{\n(() => {\n  const s = String($('AMARTHA').item.json.output ?? '');\n  const i = s.indexOf('http');\n  return i >= 0 ? s.slice(i) : '';\n})()\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2384,
+        80
+      ],
+      "id": "bbf5a36e-d8a5-4485-b3ad-326a9c6f235d",
+      "name": "Get Images"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1328,
+        560
+      ],
+      "id": "82fa8f9f-6afe-4a3d-9de0-1c90ebc86e5b",
+      "name": "Google Gemini Chat Model4",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "19De1judl4l0fmTg",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "=Call this tool to get available tables and fields",
+        "workflowId": {
+          "__rl": true,
+          "value": "UpQhFrVWU2DY5RhL",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/UpQhFrVWU2DY5RhL",
+          "cachedResultName": "test1"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1536,
+        720
+      ],
+      "id": "4886a4ce-fe79-4e19-860e-c64b9a4b6807",
+      "name": "Get tables, schemas, columns, and foreign keys4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const MAX = 4000;\n\n// --- Safe getter: tidak error kalau node belum dieksekusi / tidak ada\nfunction pickOutput() {\n  const tryGet = (name) => {\n    try {\n      const it = $(name).first();\n      const v =\n        it?.json?.output ??\n        it?.json?.text ??\n        it?.json?.result ??\n        undefined;\n      return (typeof v === 'string' && v.trim().length > 0) ? v : undefined;\n    } catch (e) {\n      return undefined;\n    }\n  };\n\n  return (\n    tryGet('AMARTHA') ??\n    tryGet('UMKM') ??\n    (typeof $json.output === 'string' ? $json.output : '') ??\n    ''\n  );\n}\n\nconst raw0 = pickOutput();\nconst raw = String(raw0).replaceAll('**', '*');\n\n// Kosong? kirim kosong supaya node berikutnya aman\nif (!raw || raw.trim().length === 0) {\n  return [{ json: { text: '' } }];\n}\n\n// --- Util: smart split <= limit (prioritaskan newline, lalu spasi, terakhir hard cut)\nfunction splitSmart(text, limit) {\n  const chunks = [];\n  let start = 0;\n  while (start < text.length) {\n    const end = Math.min(start + limit, text.length);\n    let cut = end;\n\n    if (end < text.length) {\n      const slice = text.slice(start, end);\n      const lastNL = slice.lastIndexOf('\\n');\n      const lastSp = slice.lastIndexOf(' ');\n      if (lastNL > 0)      cut = start + lastNL;\n      else if (lastSp > 0) cut = start + lastSp;\n    }\n\n    chunks.push(text.slice(start, cut));\n    start = cut;\n\n    // lewati pemisah jika tepat di boundary\n    if (start < text.length && (text[start] === '\\n' || text[start] === ' ')) start += 1;\n  }\n  return chunks;\n}\n\n// Pisah berdasarkan baris (dukung \"header diulang\")\nconst lines = raw.split('\\n');\n\n// === Kasus 1: single-line ===\nif (lines.length === 1) {\n  if (raw.length <= MAX) return [{ json: { text: raw } }];\n  const parts = splitSmart(raw, MAX);\n  const total = parts.length;\n  return parts.map((t, i) => ({ json: { text: `(part ${i + 1}/${total})\\n${t}` } }));\n}\n\n// === Kasus 2: header + body ===\nconst header = lines[0];\nconst body   = lines.slice(1);\n\n// Builder chunk berbasis baris; header diulang\nconst chunks = [];\nlet cur = [header];\nlet curLen = header.length + 1; // + '\\n'\n\nfor (const line of body) {\n  const add = line.length + 1;\n  if (curLen + add > MAX) {\n    if (cur.length > 1) chunks.push(cur.join('\\n')); // flush\n    cur = [header, line];\n    curLen = header.length + 1 + add;\n  } else {\n    cur.push(line);\n    curLen += add;\n  }\n}\nif (cur.length > 1) chunks.push(cur.join('\\n')); // flush terakhir\n\n// Body kosong → kirim header saja (pecah jika perlu)\nif (chunks.length === 0) {\n  if (header.length <= MAX) return [{ json: { text: header } }];\n  const parts = splitSmart(header, MAX);\n  const total = parts.length;\n  return parts.map((t, i) => ({ json: { text: `(part ${i + 1}/${total})\\n${t}` } }));\n}\n\n// Numbering\nconst total = chunks.length;\nreturn chunks.map((content, idx) => ({\n  json: { text: (total > 1 ? `(part ${idx + 1}/${total})\\n` : '') + content }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        224
+      ],
+      "id": "43b43e41-c51a-482c-8c80-d458de0e996b",
+      "name": "Chunk Text3"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2544,
+        224
+      ],
+      "id": "5be44868-adc2-42d4-8649-ce00c2561e7f",
+      "name": "Loop Over Items6"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7e454d36-7e11-44c3-b51b-d175e8c17b62",
+              "leftValue": "={{ $('AMARTHA').item.json.output }}",
+              "rightValue": "https",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2192,
+        160
+      ],
+      "id": "f86be598-3a9a-4b92-ae82-00596182454e",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('WAHA Trigger').item.json.payload.media.mimetype }}",
+                    "rightValue": "image/jpeg",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "07b32384-f980-436a-b261-c467cf43c462"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Image Input"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "755e8989-6a2f-41f9-ab41-736c123f270f",
+                    "leftValue": "={{ $('WAHA Trigger').item.json.payload.media.mimetype }}",
+                    "rightValue": "application/pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Document Input"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "9f1df6b0-b51a-498f-910c-8531287437b5",
+                    "leftValue": "={{ $('WAHA Trigger').item.json.payload.media.url }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "empty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Text Input"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        384,
+        96
+      ],
+      "id": "fc75de89-dd92-42a8-95c4-02cbac39e887",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "87f13785-80fa-4e5f-a83f-45b1441c0f9e",
+              "name": "session",
+              "value": "={{ $('WAHA Trigger').item.json.session }}",
+              "type": "string"
+            },
+            {
+              "id": "9e464c99-2638-4351-a2fd-f8d3f1663ad2",
+              "name": "chatId",
+              "value": "={{ $('WAHA Trigger').item.json.payload.from }}",
+              "type": "string"
+            },
+            {
+              "id": "a8f7476c-6df7-4473-9fc3-1719d4862c0b",
+              "name": "Text",
+              "value": "={{ $('WAHA Trigger').item.json.payload.body }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        640,
+        288
+      ],
+      "id": "39fd0084-aa0a-45c2-836f-ebd08d0c35ad",
+      "name": "Text Prompt"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('WAHA Trigger').item.json.payload.media.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wahaApi",
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "394b94fa-f5c2-4e07-9144-351893540100",
+      "name": "Download Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        -320
+      ],
+      "credentials": {
+        "wahaApi": {
+          "id": "iaUFAgYHTkvEy2WR",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Send Text",
+        "session": "={{ $('WAHA Trigger').item.json.session }}",
+        "chatId": "={{ $('WAHA Trigger').item.json.payload.from }}",
+        "reply_to": "={{ $('WAHA Trigger').item.json.payload._data.from }}",
+        "text": "={{ (() => { \n  try { \n    return $json.text.replaceAll('**','*') \n  } catch(_) { \n    return ($json.output || '').replaceAll('**','*') \n  } \n})() }}",
+        "requestOptions": {}
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202502,
+      "position": [
+        2720,
+        240
+      ],
+      "id": "67048835-6cf8-48e1-96eb-bd781ef245b1",
+      "name": "Send a text",
+      "credentials": {
+        "wahaApi": {
+          "id": "iaUFAgYHTkvEy2WR",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $fromAI('sql_query') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        1696,
+        752
+      ],
+      "id": "217d74a4-e2d7-47e7-8f54-3fa8f48a80d9",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "5Ve8LBMfVSfOyLOw",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Send Seen",
+        "session": "={{ $('WAHA Trigger').item.json.session }}",
+        "chatId": "={{ $('WAHA Trigger').item.json.payload.from }}",
+        "messageId": "={{ $('WAHA Trigger').item.json.payload.id }}",
+        "requestOptions": {}
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202502,
+      "position": [
+        1072,
+        368
+      ],
+      "id": "5e62a4df-f7c9-44db-af8b-04dec166ec2d",
+      "name": "Send Seen",
+      "credentials": {
+        "wahaApi": {
+          "id": "iaUFAgYHTkvEy2WR",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Send Seen",
+        "session": "={{ $('WAHA Trigger').item.json.session }}",
+        "chatId": "={{ $('WAHA Trigger').item.json.payload.from }}",
+        "messageId": "={{ $('WAHA Trigger').item.json.payload.id }}",
+        "requestOptions": {}
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202502,
+      "position": [
+        1056,
+        -48
+      ],
+      "id": "4a378db1-cf31-4f89-9d05-0aea395a0fd8",
+      "name": "Send Seen1",
+      "credentials": {
+        "wahaApi": {
+          "id": "iaUFAgYHTkvEy2WR",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "binaryToPropery",
+        "options": {
+          "keepSource": "json"
+        }
+      },
+      "id": "4c26d18f-b5f7-46e6-bdb5-c490945f0fe4",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        2544,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Send Image",
+        "session": "={{ $('WAHA Trigger').item.json.session }}",
+        "chatId": "={{ $('WAHA Trigger').item.json.payload.from }}",
+        "file": "={\n  \"mimetype\": \"image/png\",\n  \"filename\": \"chart\",\n  \"data\": \"{{ $json.data }}\"\n}",
+        "reply_to": "={{ $('WAHA Trigger').item.json.payload._data.from }}",
+        "caption": "={{ \n  (($('AMARTHA').item.json.output || '')\n    .replace(/\\\\n/g, '\\n')\n    .replace(/\\s*https?:\\/\\/\\S+.*$/,'')\n  ).trim()\n}}",
+        "requestOptions": {}
+      },
+      "id": "e8a90a01-6eda-4aec-94e2-38a0a4586163",
+      "name": "Send an Image",
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202409,
+      "position": [
+        2720,
+        80
+      ],
+      "credentials": {
+        "wahaApi": {
+          "id": "iaUFAgYHTkvEy2WR",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const KEYS = [\n  {\n    name: 'Beverradatauto',\n    key: 'AIzaSyBMYDYSmirg4CZWyLibl33-aJ2zmm44TpI',\n  },\n  {\n    name: 'Beverradata',\n    key: 'AIzaSyAAvrkeVBhBzSnZC9JiFkF9JCTshoLNTs8',\n  },\n  {\n    name: 'Halobeverra',\n    key: 'AIzaSyBuMn6bKKhDaclmVYYTqAC22Daj-lQdEss',\n  },\n  {\n    name: 'Beverrahallo',\n    key: 'AIzaSyC6sPNx0-kJCx0H_0L6WzbHq-OA3zxIOWA',\n  },\n  {\n    name: 'Beverrahalo',\n    key: 'AIzaSyD7mkqil22WLXh0PmT7crAWzx3XuykqxnU',\n  },\n  {\n    name: 'Beverrahi',\n    key: 'AIzaSyDfmDyQQUXdZnaBSyPLscQkrDu30jFfjjk',\n  },\n  {\n    name: 'Beverrahola',\n    key: 'AIzaSyDOyyO0r_gh2bCED7iCKrfvWbRsULf8fas',\n  },\n  {\n    name: 'Haibeverra',\n    key: 'AIzaSyBc51lHpT84aJirjRT28amZOoKggAnNgPM',\n  },\n  {\n    name: 'Hallobeverra',\n    key: 'AIzaSyDdf4L-7E0NZdrA8RJGta4rtL0u619p0ow',\n  },\n  {\n    name: 'Holabeverra',\n    key: 'AIzaSyBfmUFfonzNi62vqRcQgTWRfom2eWMo34A',\n  },\n];\n\nconst item = $json;\n\n// Ambil daftar index key yang sudah pernah dipakai di eksekusi ini\nlet triedKeyIndexes = Array.isArray(item.triedKeyIndexes)\n  ? item.triedKeyIndexes.slice()\n  : [];\n\n// Hitung semua index yang masih tersedia (belum dicoba)\nconst allIndexes = KEYS.map((_, idx) => idx);\nconst availableIndexes = allIndexes.filter(idx => !triedKeyIndexes.includes(idx));\n\n// Kalau tidak ada key tersisa -> tandai habis\nif (availableIndexes.length === 0) {\n  return [\n    {\n      json: {\n        ...item,\n        no_more_keys: true,\n        message: 'All Gemini API keys have been tried in this execution.',\n      },\n    },\n  ];\n}\n\n// Pilih 1 index random dari key yang tersisa\nconst randomPos = Math.floor(Math.random() * availableIndexes.length);\nconst chosenIndex = availableIndexes[randomPos];\nconst chosenKeyObj = KEYS[chosenIndex];\n\n// Tambahkan index ke daftar telah dicoba\ntriedKeyIndexes.push(chosenIndex);\nreturn [\n  {\n    json: {\n      ...item,\n      gemini_api_key: chosenKeyObj.key,\n      gemini_credential_name: chosenKeyObj.name,\n      triedKeyIndexes,\n      attempt_count: triedKeyIndexes.length,\n      no_more_keys: false,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        368
+      ],
+      "id": "8cbae35d-19a9-4ea4-ba24-45abf227672e",
+      "name": "Pick Gemini Key"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e2173b11-f377-4da1-b5c6-fb296e4c36d3",
+              "leftValue": "={{\n  (\n    $json.error ||\n    $json.errorMessage ||\n    $json.error?.message ||\n    $json.message ||\n    ''\n  ).toString()\n}}",
+              "rightValue": "too many requests|check your credentials",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            },
+            {
+              "id": "3b654d23-431d-414f-b178-17895f53dbf7",
+              "leftValue": "={{ $('Pick Gemini Key').item.json.no_more_keys }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        368
+      ],
+      "id": "0d7cfefe-e7db-4d41-8c5f-900db7ac940c",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const KEYS = [\n  {\n    name: 'Beverradatauto',\n    key: 'AIzaSyBMYDYSmirg4CZWyLibl33-aJ2zmm44TpI',\n  },\n  {\n    name: 'Beverradata',\n    key: 'AIzaSyAAvrkeVBhBzSnZC9JiFkF9JCTshoLNTs8',\n  },\n  {\n    name: 'Halobeverra',\n    key: 'AIzaSyBuMn6bKKhDaclmVYYTqAC22Daj-lQdEss',\n  },\n  {\n    name: 'Beverrahallo',\n    key: 'AIzaSyC6sPNx0-kJCx0H_0L6WzbHq-OA3zxIOWA',\n  },\n  {\n    name: 'Beverrahalo',\n    key: 'AIzaSyD7mkqil22WLXh0PmT7crAWzx3XuykqxnU',\n  },\n  {\n    name: 'Beverrahi',\n    key: 'AIzaSyDfmDyQQUXdZnaBSyPLscQkrDu30jFfjjk',\n  },\n  {\n    name: 'Beverrahola',\n    key: 'AIzaSyDOyyO0r_gh2bCED7iCKrfvWbRsULf8fas',\n  },\n  {\n    name: 'Haibeverra',\n    key: 'AIzaSyBc51lHpT84aJirjRT28amZOoKggAnNgPM',\n  },\n  {\n    name: 'Hallobeverra',\n    key: 'AIzaSyDdf4L-7E0NZdrA8RJGta4rtL0u619p0ow',\n  },\n  {\n    name: 'Holabeverra',\n    key: 'AIzaSyBfmUFfonzNi62vqRcQgTWRfom2eWMo34A',\n  },\n];\n\nconst item = $json;\n\n// Ambil daftar index key yang sudah pernah dipakai di eksekusi ini\nlet triedKeyIndexes = Array.isArray(item.triedKeyIndexes)\n  ? item.triedKeyIndexes.slice()\n  : [];\n\n// Hitung semua index yang masih tersedia (belum dicoba)\nconst allIndexes = KEYS.map((_, idx) => idx);\nconst availableIndexes = allIndexes.filter(idx => !triedKeyIndexes.includes(idx));\n\n// Kalau tidak ada key tersisa -> tandai habis\nif (availableIndexes.length === 0) {\n  return [\n    {\n      json: {\n        ...item,\n        no_more_keys: true,\n        message: 'All Gemini API keys have been tried in this execution.',\n      },\n    },\n  ];\n}\n\n// Pilih 1 index random dari key yang tersisa\nconst randomPos = Math.floor(Math.random() * availableIndexes.length);\nconst chosenIndex = availableIndexes[randomPos];\nconst chosenKeyObj = KEYS[chosenIndex];\n\n// Tambahkan index ke daftar telah dicoba\ntriedKeyIndexes.push(chosenIndex);\nreturn [\n  {\n    json: {\n      ...item,\n      gemini_api_key: chosenKeyObj.key,\n      gemini_credential_name: chosenKeyObj.name,\n      triedKeyIndexes,\n      attempt_count: triedKeyIndexes.length,\n      no_more_keys: false,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        -48
+      ],
+      "id": "bb058cad-7fd7-4115-b173-2a3ea23fedf0",
+      "name": "Pick Gemini Key5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e2173b11-f377-4da1-b5c6-fb296e4c36d3",
+              "leftValue": "={{\n  (\n    $json.error ||\n    $json.errorMessage ||\n    $json.error?.message ||\n    $json.message ||\n    ''\n  ).toString()\n}}",
+              "rightValue": "too many requests|check your credentials",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            },
+            {
+              "id": "3b654d23-431d-414f-b178-17895f53dbf7",
+              "leftValue": "={{ $('Pick Gemini Key5').item.json.no_more_keys }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1696,
+        -48
+      ],
+      "id": "36233c1f-f00d-49ad-91d7-cd0e4e7309f8",
+      "name": "If8"
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Start Typing",
+        "session": "={{ $('WAHA Trigger').item.json.session }}",
+        "chatId": "={{ $('WAHA Trigger').item.json.payload.from }}",
+        "requestOptions": {}
+      },
+      "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+      "typeVersion": 202502,
+      "position": [
+        1904,
+        -32
+      ],
+      "id": "23fee7de-a892-4da0-9d88-54341ac47ca2",
+      "name": "Start Typing",
+      "credentials": {
+        "wahaApi": {
+          "id": "iaUFAgYHTkvEy2WR",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        512,
+        816
+      ],
+      "id": "9e0b28a1-4ce0-4d0c-b456-3b292958bfca",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH rels AS (\n  SELECT c.oid,\n         n.nspname AS schema_name,\n         c.relname AS table_name,\n         c.relkind\n  FROM pg_class c\n  JOIN pg_namespace n ON n.oid = c.relnamespace\n  WHERE c.relkind IN ('r','v','m')\n    AND n.nspname NOT IN ('pg_catalog','information_schema','pg_toast')\n    AND n.nspname NOT LIKE 'pg_temp%'\n    AND n.nspname NOT LIKE 'pg_toast_temp%'\n),\ncols AS (\n  SELECT r.schema_name,\n         r.table_name,\n         a.attnum,\n         a.attname                          AS column_name,\n         format_type(a.atttypid,a.atttypmod) AS data_type,\n         dc.description                     AS column_comment\n  FROM rels r\n  JOIN pg_attribute a ON a.attrelid = r.oid\n  LEFT JOIN pg_description dc ON dc.objoid = r.oid AND dc.objsubid = a.attnum\n  WHERE a.attnum > 0 AND NOT a.attisdropped\n),\nfk AS (\n  SELECT n.nspname  AS schema_name,\n         c.relname  AS table_name,\n         a.attname  AS column_name,\n         nr.nspname AS ref_schema,\n         cr.relname AS ref_table,\n         ar.attname AS ref_column\n  FROM pg_constraint con\n  JOIN pg_class      c  ON c.oid  = con.conrelid\n  JOIN pg_namespace  n  ON n.oid  = c.relnamespace\n  JOIN pg_class      cr ON cr.oid = con.confrelid\n  JOIN pg_namespace  nr ON nr.oid = cr.relnamespace\n  JOIN LATERAL unnest(con.conkey)  WITH ORDINALITY ck(attnum,ord) ON true\n  JOIN LATERAL unnest(con.confkey) WITH ORDINALITY fk(attnum,ord) ON fk.ord = ck.ord\n  JOIN pg_attribute a  ON a.attrelid  = con.conrelid  AND a.attnum = ck.attnum\n  JOIN pg_attribute ar ON ar.attrelid = con.confrelid AND ar.attnum = fk.attnum\n  WHERE con.contype = 'f'\n),\ntcomm AS (\n  SELECT n.nspname AS schema_name,\n         c.relname AS table_name,\n         dt.description AS table_comment\n  FROM pg_class c\n  JOIN pg_namespace n ON n.oid = c.relnamespace\n  LEFT JOIN pg_description dt ON dt.objoid = c.oid AND dt.objsubid = 0\n),\nfmt AS (\n  SELECT\n    c.schema_name,\n    c.table_name,\n    string_agg(\n      (c.column_name || ' ' || c.data_type) ||\n      COALESCE((\n        SELECT ' [FK→' || f.ref_schema || '.' || f.ref_table || '(' || f.ref_column || ')]'\n        FROM fk f\n        WHERE f.schema_name = c.schema_name\n          AND f.table_name  = c.table_name\n          AND f.column_name = c.column_name\n        LIMIT 1\n      ), ''),\n      ', ' ORDER BY c.attnum\n    ) AS columns_with_types_and_columns,\n    jsonb_agg(\n      jsonb_build_object(\n        'column_name', c.column_name,\n        'data_type',   c.data_type,\n        'comment',     c.column_comment,\n        'fk', (\n           SELECT CASE WHEN f.ref_table IS NULL THEN NULL\n                       ELSE f.ref_schema || '.' || f.ref_table || '(' || f.ref_column || ')'\n                  END\n           FROM fk f\n           WHERE f.schema_name=c.schema_name\n             AND f.table_name =c.table_name\n             AND f.column_name=c.column_name\n           LIMIT 1\n        )\n      ) ORDER BY c.attnum\n    ) AS columns_detailed_json\n  FROM cols c\n  GROUP BY c.schema_name, c.table_name\n)\nSELECT DISTINCT ON (f.table_name)\n  f.table_name,\n  f.columns_with_types_and_columns,\n  tc.table_comment,\n  f.columns_detailed_json\nFROM fmt f\nLEFT JOIN tcomm tc\n  ON tc.schema_name = f.schema_name AND tc.table_name = f.table_name\nORDER BY f.table_name,\n         CASE f.schema_name WHEN 'public' THEN 1 WHEN 'public' THEN 2 ELSE 9 END;\n\nCOMMENT ON VIEW public.get_list_of_tables_and_columns\nIS 'Daftar objek (table/view/mview) beserta kolom. Tetap kompatibel: table_name, columns_with_types_and_columns. Tambahan: table_comment, columns_detailed_json.';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        816
+      ],
+      "id": "29a9729a-f813-407a-bc15-f29dc7dbc750",
+      "name": "Execute Get tables, schemas, columns, and foreign keys",
+      "credentials": {
+        "postgres": {
+          "id": "5Ve8LBMfVSfOyLOw",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5c9ca165-9adc-40c1-a0c9-003bc7a8be6a",
+              "name": "mappings",
+              "value": "={{ $json.data }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        816
+      ],
+      "id": "24dda365-520d-4634-ac4b-410ba4d6d256",
+      "name": "Set tables, schemas, columns, and foreign keys"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        912,
+        816
+      ],
+      "id": "fa365dab-0dd9-4f8f-a5d4-6e4eaaca5b3f",
+      "name": "Aggregate query data"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ (() => {\n  let a = '';\n  try {\n    a = $('Text Prompt').item.json?.Text ?? '';\n  } catch (_) {}\n\n  let b = '';\n  try {\n    const fromCaption = $('WAHA Trigger').item.json?.payload?._data?.caption ?? '';\n    const fromAnalyze = $('Analyze image').item.json?.content?.parts?.[0]?.text ?? '';\n    // caption dulu, baru hasil analyze\n    b = [fromCaption, fromAnalyze].filter(s => s && String(s).trim()).join('\\n\\n');\n  } catch (_) {}\n\n  return (a && String(a).trim()) ? a : b;\n})() }}\n",
+        "options": {
+          "systemMessage": "=You are a helpful assistant called \"ArthiUsaha\".ArthiUsaha is a WhatsApp-based AI financial assistant designed to empower Amartha's MSME partners. This solution bridges the gap between informal financial record-keeping (notebooks, receipts) and the formal banking system, enabling more accurate credit assessments and personalized financial literacy. You always respond to every conversation in a friendly communication style and tone using users language. You have capability to respond with regional language such as Bahasa Sunda, Bahasa Batak, Bahasa Minang, Bahasa Melayu and, Bahasa Bali\n\nThe first time you interact with a user, greet them using their name: {{ $('WAHA Trigger').item.json.payload._data.notifyName }}.\n\nYou are currently speaking to {{ $('WAHA Trigger').item.json.me.pushName }}.\n\nGive users a business consultant service, offer them to upload a financial record and you help analyze it and give a reccomendation ammount based on information that you excracted and compare with internal data by execute a \"Get tables, schemas, columns, and foreign keys4\" tool first and then execute \"Execute a SQL query\" tool. \n\nRules:\n- On the first interaction, greet the user using the name above and briefly introduce yourself.\n- Your responses will be forwarded into the chat, so to keep it clean, do not use any markdown or any text formatting (include *).\n\n# Guidelines for SQL Generation\n1. **PostgreSQL Syntax**: Use standard Postgres syntax (e.g., `LIMIT`, `::date`, `NOW()`, `ILIKE`).\n2. **Joins**: Prefer explicit `JOIN` over implicit joins. Use the foreign key relationships found in the schema view.\n3. **Ambiguity**: If a column name is ambiguous (e.g., `id`), qualify it with the table name (e.g., `tasks.id`).\n4. **Safety**: Only execute `SELECT` statements. Never modify data.\n# Example Interaction"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1408,
+        -48
+      ],
+      "id": "7bce67ad-f2eb-474f-aaee-e03d63eb14c2",
+      "name": "UMKM",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ (() => {\n  let a = '';\n  try {\n    a = $('Text Prompt').item.json?.Text ?? '';\n  } catch (_) {}\n\n  let b = '';\n  try {\n    const fromCaption = $('WAHA Trigger').item.json?.payload?._data?.caption ?? '';\n    const fromAnalyze = $('Analyze image').item.json?.content?.parts?.[0]?.text ?? '';\n    // caption dulu, baru hasil analyze\n    b = [fromCaption, fromAnalyze].filter(s => s && String(s).trim()).join('\\n\\n');\n  } catch (_) {}\n\n  return (a && String(a).trim()) ? a : b;\n})() }}",
+        "options": {
+          "systemMessage": "=# Role\nYou are an advanced AI Data Analyst for \"ArthiUsaha\". Your primary capability is to answer user questions by dynamically exploring the database schema and executing precise PostgreSQL queries.\n# Critical Workflow (MANDATORY)\nYou must follow this 2-step process for EVERY user request involving data:\n### Step 1: Schema Discovery\n**ALWAYS** call the tool to query the `get_list_of_tables_and_columns` view FIRST.\n- **Query**: `SELECT * FROM get_list_of_tables_and_columns;`\n- **Purpose**: This view is the **SOURCE OF TRUTH**. It contains:\n  - `table_name`: Name of the table.\n  - `columns_with_types_and_columns`: List of columns with data types and Foreign Key relationships (e.g., `[FK→public.customers(id)]`).\n  - `table_comment`: Description of what the table stores.\n  - `columns_detailed_json`: Detailed metadata.\n- **Action**: Read the output to understand the current database structure, relationships, and column names relevant to the user's question.\n### Step 2: Query Generation & Execution\nBased *only* on the schema found in Step 1, construct and execute a single valid PostgreSQL query to answer the user.\n- **Do not assume** table names or columns exist without verifying in Step 1.\n- **Use Foreign Keys** identified in Step 1 to join tables correctly.\n- **Format**: Output the final answer based on the query result.\n---\n# Guidelines for SQL Generation\n1. **PostgreSQL Syntax**: Use standard Postgres syntax (e.g., `LIMIT`, `::date`, `NOW()`, `ILIKE`).\n2. **Joins**: Prefer explicit `JOIN` over implicit joins. Use the foreign key relationships found in the schema view.\n3. **Ambiguity**: If a column name is ambiguous (e.g., `id`), qualify it with the table name (e.g., `tasks.id`).\n4. **Safety**: Only execute `SELECT` statements. Never modify data.\n# Example Interaction\n**User**: \"Tampilkan daftar customer yang punya pinjaman macet.\"\n**Agent Thought Process**:\n1. *I need to know the table structure first.* -> **Call Tool**: `SELECT * FROM get_list_of_tables_and_columns`\n2. *Tool Output Analysis*:\n   - Found table `customers` (PK: `customer_number`).\n   - Found table `loans` (FK: `customer_number` -> `customers`, Column: `dpd`).\n   - \"Macet\" implies high DPD (Days Past Due).\n3. *Construct Query*: Join `customers` and `loans` where `dpd > 0`."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        1408,
+        368
+      ],
+      "id": "620bcc37-e836-46d1-90d1-a08dc9046da4",
+      "name": "AMARTHA",
+      "retryOnFail": false,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "@devlikeapro/n8n-nodes-waha.wahaTrigger",
+      "typeVersion": 202502,
+      "position": [
+        160,
+        96
+      ],
+      "id": "2a0a2ba0-870d-497f-8781-942ad3349a50",
+      "name": "WAHA Trigger",
+      "webhookId": "08e06a8b-0047-4c5e-8c5e-d7de0ce1ef38"
+    },
+    {
+      "parameters": {
+        "jsCode": "const KEYS = [\n  {\n    name: 'Beverradatauto',\n    key: 'AIzaSyBMYDYSmirg4CZWyLibl33-aJ2zmm44TpI',\n  },\n  {\n    name: 'Beverradata',\n    key: 'AIzaSyAAvrkeVBhBzSnZC9JiFkF9JCTshoLNTs8',\n  },\n  {\n    name: 'Halobeverra',\n    key: 'AIzaSyBuMn6bKKhDaclmVYYTqAC22Daj-lQdEss',\n  },\n  {\n    name: 'Beverrahallo',\n    key: 'AIzaSyC6sPNx0-kJCx0H_0L6WzbHq-OA3zxIOWA',\n  },\n  {\n    name: 'Beverrahalo',\n    key: 'AIzaSyD7mkqil22WLXh0PmT7crAWzx3XuykqxnU',\n  },\n  {\n    name: 'Beverrahi',\n    key: 'AIzaSyDfmDyQQUXdZnaBSyPLscQkrDu30jFfjjk',\n  },\n  {\n    name: 'Beverrahola',\n    key: 'AIzaSyDOyyO0r_gh2bCED7iCKrfvWbRsULf8fas',\n  },\n  {\n    name: 'Haibeverra',\n    key: 'AIzaSyBc51lHpT84aJirjRT28amZOoKggAnNgPM',\n  },\n  {\n    name: 'Hallobeverra',\n    key: 'AIzaSyDdf4L-7E0NZdrA8RJGta4rtL0u619p0ow',\n  },\n  {\n    name: 'Holabeverra',\n    key: 'AIzaSyBfmUFfonzNi62vqRcQgTWRfom2eWMo34A',\n  },\n];\n\nconst item = $json;\n\n// Ambil daftar index key yang sudah pernah dipakai di eksekusi ini\nlet triedKeyIndexes = Array.isArray(item.triedKeyIndexes)\n  ? item.triedKeyIndexes.slice()\n  : [];\n\n// Hitung semua index yang masih tersedia (belum dicoba)\nconst allIndexes = KEYS.map((_, idx) => idx);\nconst availableIndexes = allIndexes.filter(idx => !triedKeyIndexes.includes(idx));\n\n// Kalau tidak ada key tersisa -> tandai habis\nif (availableIndexes.length === 0) {\n  return [\n    {\n      json: {\n        ...item,\n        no_more_keys: true,\n        message: 'All Gemini API keys have been tried in this execution.',\n      },\n    },\n  ];\n}\n\n// Pilih 1 index random dari key yang tersisa\nconst randomPos = Math.floor(Math.random() * availableIndexes.length);\nconst chosenIndex = availableIndexes[randomPos];\nconst chosenKeyObj = KEYS[chosenIndex];\n\n// Tambahkan index ke daftar telah dicoba\ntriedKeyIndexes.push(chosenIndex);\nreturn [\n  {\n    json: {\n      ...item,\n      gemini_api_key: chosenKeyObj.key,\n      gemini_credential_name: chosenKeyObj.name,\n      triedKeyIndexes,\n      attempt_count: triedKeyIndexes.length,\n      no_more_keys: false,\n    },\n  },\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        -320
+      ],
+      "id": "62afea46-3327-4a48-8ffc-4df5880f2c6a",
+      "name": "Pick Gemini Key6"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e2173b11-f377-4da1-b5c6-fb296e4c36d3",
+              "leftValue": "={{\n  (\n    $json.error ||\n    $json.errorMessage ||\n    $json.error?.message ||\n    $json.message ||\n    ''\n  ).toString()\n}}",
+              "rightValue": "too many requests|check your credentials",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            },
+            {
+              "id": "3b654d23-431d-414f-b178-17895f53dbf7",
+              "leftValue": "={{ $('Pick Gemini Key6').item.json.no_more_keys }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        928,
+        -320
+      ],
+      "id": "e9c00b96-7da4-47d2-bcac-52afcd4a4f58",
+      "name": "If"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Request Report ?": {
+      "main": [
+        [
+          {
+            "node": "If User Request a Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If User Request a Report": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Authorized User": {
+      "main": [
+        [
+          {
+            "node": "Send Seen1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Seen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "UMKM",
+            "type": "ai_memory",
+            "index": 0
+          },
+          {
+            "node": "AMARTHA",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze image": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_tool": [
+        [
+          {
+            "node": "Visualization",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Visualization": {
+      "ai_tool": [
+        [
+          {
+            "node": "AMARTHA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Images": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "UMKM",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "AMARTHA",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Visualization",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get tables, schemas, columns, and foreign keys4": {
+      "ai_tool": [
+        [
+          {
+            "node": "AMARTHA",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "UMKM",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Text3": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items6": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Send a text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Get Images",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chunk Text3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Pick Gemini Key6",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        [
+          {
+            "node": "Text Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Prompt": {
+      "main": [
+        [
+          {
+            "node": "Authorized User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Media": {
+      "main": [
+        [
+          {
+            "node": "Analyze image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "ai_tool": [
+        [
+          {
+            "node": "AMARTHA",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "UMKM",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Seen": {
+      "main": [
+        [
+          {
+            "node": "Pick Gemini Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Seen1": {
+      "main": [
+        [
+          {
+            "node": "Pick Gemini Key5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Send an Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Gemini Key": {
+      "main": [
+        [
+          {
+            "node": "AMARTHA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Pick Gemini Key",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Request Report ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Gemini Key5": {
+      "main": [
+        [
+          {
+            "node": "UMKM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If8": {
+      "main": [
+        [
+          {
+            "node": "Pick Gemini Key5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Start Typing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Typing": {
+      "main": [
+        [
+          {
+            "node": "Chunk Text3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Execute Get tables, schemas, columns, and foreign keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Get tables, schemas, columns, and foreign keys": {
+      "main": [
+        [
+          {
+            "node": "Aggregate query data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate query data": {
+      "main": [
+        [
+          {
+            "node": "Set tables, schemas, columns, and foreign keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UMKM": {
+      "main": [
+        [
+          {
+            "node": "If8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AMARTHA": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Trigger": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Gemini Key6": {
+      "main": [
+        [
+          {
+            "node": "Download Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Pick Gemini Key6",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Authorized User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0b73581a-dbbf-4f1d-9f75-4c18babbe241",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "988610affeceec30c0854e5bcd0fa6256946c72681382e2e06a51fa6bb2e2ae4"
+  },
+  "id": "UpQhFrVWU2DY5RhL",
+  "tags": []
+}

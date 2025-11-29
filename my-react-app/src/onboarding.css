@@ -1,0 +1,218 @@
+/* Reset default margins and padding */
+html,
+body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Wrapper */
+.wrapper {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    /* 🔥 BACKGROUND IMAGE UNGU */
+    /* background-image: url('/src/assets/bg-purple.png'); */
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+
+    padding: 20px;
+    font-family: "Inter", sans-serif;
+
+    /* Tambahkan overlay tipis agar card lebih jelas */
+    position: relative;
+    overflow: hidden;
+}
+
+.wrapper::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    /* gelapin sedikit */
+    backdrop-filter: blur(2px);
+    /* efek smooth */
+    z-index: 1;
+}
+
+/* Pastikan card tetap muncul normal di atas overlay */
+.container-box {
+    position: relative;
+    z-index: 2;
+}
+
+
+/* Card */
+.container-box {
+    width: 100%;
+    max-width: 480px;
+}
+
+.card {
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    padding: 28px;
+}
+
+.card-content {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.header-row h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0;
+    color: #333;
+}
+
+.subtitle {
+    color: #6a5f7e;
+    font-size: 0.9rem;
+    margin-bottom: 18px;
+}
+
+.icon {
+    width: 28px;
+    height: 28px;
+    color: #7b42f6;
+}
+
+.icon-sm {
+    width: 20px;
+    height: 20px;
+    color: #7b42f6;
+}
+
+.icon-lg {
+    width: 48px;
+    height: 48px;
+    color: #7b42f6;
+    margin-bottom: 10px;
+}
+
+/* Steps */
+.steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 22px;
+}
+
+.step-bar {
+    height: 6px;
+    border-radius: 4px;
+    background: #ddd;
+    transition: background 0.3s;
+}
+
+.step-bar.active {
+    background: #7b42f6;
+}
+
+/* Form Step Box */
+.step-box {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 10px;
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.step-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Input */
+.input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #bba8e7;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border 0.2s;
+    box-sizing: border-box;
+    color: #333;
+}
+
+.input:focus {
+    border-color: #7b42f6;
+}
+
+/* Buttons */
+.btn-primary {
+    background: #7b42f6;
+    color: #fff;
+    border: none;
+    padding: 12px;
+    font-size: 1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
+}
+
+.btn-primary:hover {
+    background: #692edc;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid #7b42f6;
+    color: #7b42f6;
+    padding: 10px;
+    font-size: 1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-outline:hover {
+    background: #7b42f6;
+    color: white;
+}
+
+.btn-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+/* Center text */
+.center-text {
+    text-align: center;
+}
+
+.center-text p {
+    color: #6a5f7e;
+    font-size: 0.95rem;
+}
